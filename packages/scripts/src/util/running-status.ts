@@ -46,7 +46,7 @@ export const saveRunningState = () => {
       if (err) {
         reject(err);
       } else {
-        resolve();
+        resolve(undefined!);
       }
     });
   });
