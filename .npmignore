@@ -1,0 +1,16 @@
+src/
+examples/
+scripts/
+test/
+docs/
+.idea/
+node_modules/
+.git/
+.editorconfig
+.eslintignore
+.eslintrc.js
+.gitignore
+.prettierrc.js
+.npmrc
+tsconfig.json
+typedoc.json
