@@ -1,0 +1,15 @@
+{
+  "name": "tiktok-partner-api",
+  "version": "1.0.0",
+  "description": "tiktok seller partner api",
+  "scripts": {
+  },
+  "author": "lywzx",
+  "license": "ISC",
+  "maintainers": ["lywzx"],
+  "homepage": "https://github.com/lywzx/tiktok-partner-api#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lywzx/tiktok-partner-api.git"
+  }
+}

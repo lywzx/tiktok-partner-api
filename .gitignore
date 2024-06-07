@@ -1,0 +1,11 @@
+/.idea
+dist/
+apidocs/
+/scripts/.tmp
+node_modules
+lib/
+.nyc_output/
+coverage.lcov
+coverage/
+/report.*.json
+/lerna-*.log
