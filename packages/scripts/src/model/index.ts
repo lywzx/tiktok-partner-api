@@ -3,17 +3,16 @@ import { Agent as HttpAgent } from 'http';
 import { Agent as HttpsAgent } from 'https';
 import { Exception } from './exception';
 import { CategoryListItemInterface } from '../interface/category-list-item.interface';
-import { nameToDirectoryName, promseToCallback } from '../util';
-import { ApiListInterface } from '../interface/api-list.interface';
+import { promiseToCallback } from '../util';
 import { ApiDetailInterface } from '../interface/api-detail.interface';
 import { retry } from 'async';
 
 const instance = axios.create({
-  baseURL: 'https://open-api.pinduoduo.com',
+  baseURL: 'https://partner.tiktokshop.com',
   timeout: 5000,
   headers: {
-    Origin: 'https://open.pinduoduo.com',
-    Referer: 'https://open.pinduoduo.com/',
+    Origin: 'https://partner.tiktokshop.com/',
+    Referer: 'https://partner.tiktokshop.com/',
     Connection: 'keep-alive',
   },
   httpAgent: new HttpAgent(),
@@ -22,46 +21,27 @@ const instance = axios.create({
 
 instance.interceptors.response.use((value: any) => {
   const data = value.data || {};
-  if (data.success) {
-    return value.data.result;
+  if (!data.code) {
+    return value.data;
   } else {
     throw new Exception(value.data.errorMsg, value.data.errorCode);
   }
 });
 
-const other = [
-  {
-    id: 28,
-    name: '方舟多多云API',
-  },
-];
-
 // 获取API的所有分类
 export function getAllApiCategory(): Promise<CategoryListItemInterface[]> {
   return retry(5, (callback) => {
-    const prs = instance.post('/pop/doc/category/list').then((value: any) => {
-      return [...(value as any[]), ...other].map((item) => {
-        return Object.assign({}, item, {
-          directory: nameToDirectoryName(item.name),
-        });
-      });
+    const prs = instance.get('api/v1/document/tree?workspace_id=3&aid=359713&locale=zh-CN').then((value: any) => {
+      return value.data.document_tree;
     });
-    promseToCallback(prs, callback);
-  }) as any;
-}
-
-// 通过分类ID，获取当前的所有API列表
-export function getAllApiListByCategoryId(catId: number | string): Promise<ApiListInterface> {
-  return retry(5, (callback) => {
-    const prs = instance.post('/pop/doc/info/list/byCat', { id: catId });
-    return promseToCallback(prs, callback);
+    promiseToCallback(prs, callback);
   }) as any;
 }
 
 // 通过API的ID，来获取API详细信息
-export function getApiDetailByApiId(apiId: string): Promise<ApiDetailInterface> {
+export function getApiDetailByApiId(documentId: string): Promise<ApiDetailInterface> {
   return retry(5, (callback) => {
-    const prs = instance.post('/pop/doc/info/get', { id: apiId });
-    return promseToCallback(prs, callback);
+    const prs = instance.get(`api/v1/document/api_meta?src_document_id=${documentId}&aid=359713&locale=zh-CN`).then(res => res.data.document_api_meta);
+    return promiseToCallback(prs, callback);
   }) as any;
 }

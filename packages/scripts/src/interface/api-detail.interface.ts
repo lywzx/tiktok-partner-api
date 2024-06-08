@@ -1,67 +1,37 @@
 export interface ApiDetailInterface {
-  id: number;
-  catId: number;
-  apiName: string;
-  scopeName: string;
-  usageScenarios: string;
-  needOauth: number;
-  chargeType: number;
-  platform: number;
-  scenesId: number | null;
-  scenesName: string | null;
-  roleId: number | null;
-  roleName: string | null;
-  requestCodeExample: string | null;
-  responseCodeExample: string;
-  feeType: string;
-  requestParamList: ApiDetailRequestParamInterface[];
-  responseParamList: ApiDetailResponseParamInterface[];
-  errorParamList: ApiDetailErrorParamInterface[];
-  permissionsPkgs: ApiDetailPermissionInterface[];
-  sdkDemos: ApiDetailSdkDemoInterface[];
-  apiAccessSourceLimitType: number;
-  limiters?: any[];
+  interface_path: string;
+  title: string;
+  env_desc: string;
+  method: 1,
+  query: string;
+  request_header_param: any[];
+  request_query_param: IApiBodyParam[];
+  request_body_param: IApiBodyParam[];
+  response_param: IApiBodyParam[];
+  error_code_list: IApiErrorList[];
+  api_auth_info_list: IApiAuthInfoList[];
+  is_v2: boolean;
+  is_shop_chiper_exist: boolean;
 }
 
-export interface ApiDetailRequestParamInterface {
-  id: number;
-  parentId: number;
-  childrenNum: number;
-  paramName: string;
-  paramType: string;
-  isMust: number;
-  defaultValue: string;
-  example: string;
-  paramDesc: string;
-}
 
-export interface ApiDetailResponseParamInterface {
-  id: number;
-  parentId: number;
-  childrenNum: number;
-  paramName: string;
-  paramType: string;
-  sourcePath: string | null;
-  example: string;
-  paramDesc: string;
-}
-
-export interface ApiDetailErrorParamInterface {
-  errorCode: string;
-  errorMsg: string;
-  solution: string;
-  outerErrorCode: string;
-}
-
-export interface ApiDetailSdkDemoInterface {
+export interface IApiBodyParam {
   name: string;
-  description: string;
-  url: string;
+  type: string;
+  required: string;
+  desc: string;
 }
 
-export interface ApiDetailPermissionInterface {
-  id: number;
-  name: string;
-  description: string;
-  appTypeList: any[];
+export interface IApiBodyParamWithTree extends IApiBodyParam {
+  children: IApiBodyParamWithTree[];
+}
+
+export interface IApiErrorList {
+  code: string;
+  msg: string;
+}
+
+export interface IApiAuthInfoList {
+  package: string;
+  package_type: string;
 }

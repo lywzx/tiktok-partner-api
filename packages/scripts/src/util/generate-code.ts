@@ -4,49 +4,45 @@ import {
   createResponseClassName,
   generateConstant,
   saveCode,
-  getPddResponseRootKey,
 } from './index';
 import {
-  ApiDetailInterface,
-  ApiDetailRequestParamInterface,
-  ApiDetailResponseParamInterface,
+  ApiDetailInterface, IApiBodyParam, IApiBodyParamWithTree,
 } from '../interface/api-detail.interface';
-import { tree } from './index';
-import { CodeColumnInterface, CodeInterface } from '../interface/code.interface';
-import { TreeType } from '../interface/tree.interface';
-import { RunStateFileInterface, RunStateInterface } from '../interface/run-state.interface';
+import {CodeColumnInterface, CodeInterface} from '../interface/code.interface';
+import {RunStateFileInterface, RunStateInterface} from '../interface/run-state.interface';
 import map from 'lodash/map';
 import flattenDeep from 'lodash/flattenDeep';
 import filter from 'lodash/filter';
 import { join } from 'path';
-import { generateLimiterName } from './key-name';
+import {CategoryListItemInterface} from "../interface/category-list-item.interface";
 
 /**
  * 根据每个api的信息，创建对应的代码内容
- * @param apiId
+ * @param category
+ * @param parentCategory
  * @param detail
  */
-export function generateCode(apiId: string, detail: ApiDetailInterface) {
-  const apiIdConstant = generateConstant(apiId);
+export function generateCode(category: CategoryListItemInterface, parentCategory: CategoryListItemInterface, detail: ApiDetailInterface) {
+  const apiIdConstant = generateConstant(category.name);
 
-  const apiResponseValue = getPddResponseRootKey(detail);
-  let exportResponseShortKey = '';
-  if (apiResponseValue) {
-    exportResponseShortKey = `export const ${apiIdConstant}_RESPONSE_KEY = '${apiResponseValue}';`;
+  const exportResponseShortKey: string[] = [];
+  if (detail.interface_path) {
+    exportResponseShortKey.push(`export const ${apiIdConstant}_URL_PATH = '${detail.interface_path}';`);
   }
 
-  if (detail && detail.limiters && detail.limiters.length) {
-    exportResponseShortKey += `
-export const ${generateLimiterName(apiIdConstant)} = ${JSON.stringify(detail.limiters, null, 2)};
-`;
+  if (detail.method) {
+    exportResponseShortKey.push(`export const ${apiIdConstant}_METHOD = '${detail.method}';`);
   }
 
-  const requestClassCode = buildParamsToCodeArr(detail.requestParamList, detail, 'request');
+  const requestClassCode = buildParamsToCodeArr(detail.request_query_param, detail, [category, parentCategory], 'request');
 
-  const responseClassCode = buildParamsToCodeArr(detail.responseParamList, detail, 'response');
+  const requestClassBodyCode = buildParamsToCodeArr(detail.request_body_param, detail, [category, parentCategory],'request');
 
-  return `export const ${apiIdConstant} = '${apiId}';
-${exportResponseShortKey}
+  const responseClassCode = buildParamsToCodeArr(detail.response_param, detail, [category, parentCategory],'response');
+
+  return `${exportResponseShortKey.join('')}
+
+${codeToString(requestClassBodyCode)}
 
 ${codeToString(requestClassCode)}
 
@@ -54,24 +50,66 @@ ${codeToString(responseClassCode)}
 `;
 }
 
+/**
+ * 将params转换成树形结构
+ * @param params
+ */
+export function apiBodyToTree(params: IApiBodyParam[]): IApiBodyParamWithTree[] {
+  const result:IApiBodyParamWithTree[] = [];
+  const paramsCloned = params.slice();
+  const anchor: IApiBodyParamWithTree[] = [];
+  while (paramsCloned.length) {
+    const current = {...paramsCloned.shift()!, children: []} as IApiBodyParamWithTree;
+
+    const lastAnchor = anchor[anchor.length - 1];
+
+    if (!lastAnchor) {
+      result.push(current);
+      anchor.push(current);
+      continue;
+    }
+
+    const currentDepth = current.name.match(/(\^*)/)![0];
+    const lastDepth = lastAnchor.name.match(/(\^*)/)![0];
+    let currentAnchor: IApiBodyParamWithTree[] = result;
+    if (lastDepth === currentDepth) {
+      anchor.pop();
+      if (anchor.length) {
+        currentAnchor = anchor[anchor.length - 1].children;
+      }
+    } else if (currentDepth > lastDepth) {
+      currentAnchor = lastAnchor.children;
+    } else if (currentDepth < lastDepth) {
+      anchor.splice(-2, 2);
+      if (anchor.length) {
+        currentAnchor = anchor[anchor.length - 1].children;
+      }
+    }
+    currentAnchor.push(current);
+    anchor.push(current);
+  }
+  return result;
+}
+
+
 export function buildParamsToCodeArr(
-  params: ApiDetailRequestParamInterface[] | ApiDetailResponseParamInterface[],
+  params: IApiBodyParam[],
   apiDetail: ApiDetailInterface,
+  categories: CategoryListItemInterface[],
   type: 'request' | 'response'
 ): CodeInterface[] {
-  const treed = tree(params as any, { parentKey: 'parentId', currentKey: 'id', pid: 0 } as any);
-  const scopeName = apiDetail.scopeName;
+  const treed = apiBodyToTree(params);
 
   const clsFn = type === 'request' ? createRequestClassName : createResponseClassName;
   const baseInterface: CodeInterface = {
-    name: clsFn(apiDetail.scopeName),
-    comment: `接口名称：${apiDetail.apiName}
-接口标识：${scopeName}
-接口使用场景：${apiDetail.usageScenarios}`,
+    name: clsFn(apiDetail.title),
+    comment: `接口名称：${apiDetail.title}
+接口标识：${apiDetail.title}
+接口使用场景：${apiDetail.title}`,
     columns: [],
   };
 
-  return buildInterfaceColumn(baseInterface, treed as any, type);
+  return buildInterfaceColumn(baseInterface, treed, type);
 }
 
 /**
@@ -82,64 +120,57 @@ export function buildParamsToCodeArr(
  */
 export function buildInterfaceColumn(
   inter: CodeInterface,
-  columns: TreeType<ApiDetailRequestParamInterface>[] | TreeType<ApiDetailResponseParamInterface>[],
+  columns: IApiBodyParamWithTree[],
   t: 'request' | 'response'
 ): CodeInterface[] {
   const ret: CodeInterface[] = [inter];
   const createFn = t === 'request' ? createRequestClassName : createResponseClassName;
 
   const columnsClone = columns.slice();
-  let current: TreeType<ApiDetailRequestParamInterface> | TreeType<ApiDetailResponseParamInterface> | undefined;
+  let current: IApiBodyParamWithTree | undefined;
   while ((current = columnsClone.shift())) {
-    const name = current.paramName;
+    const name = current.name;
     let type;
-    const optional = 'isMust' in current ? !current.isMust : false;
+    const optional = current.required !== 'Y';
     let comment;
-    const example = current.example;
-    if (current.childrenNum == 0) {
+    if (current.children.length == 0) {
       // 没有了细点
-      type = pddTypeToTypescriptType(current.paramType);
+      type = pddTypeToTypescriptType(current.type);
       // 没有字节点，并且又为object，通常会是string[]
       if (type === 'object[]') {
         type = 'string[]';
       }
-      comment = `@description: ${current.paramDesc}
-@type: ${type}
-@default: ${'defaultValue' in current ? current.defaultValue : ''}`;
+      comment = `@description: ${current.desc}
+@type: ${type}`;
     } else {
       const plainName = `${inter.name.replace(t === 'request' ? 'RequestInterface' : 'ResponseInterface', '')}_${
-        current.paramName
+        current.name
       }`;
       const itCls = createFn(plainName);
       if (current.children && current.children.length) {
         // 需要再创建一个interface
         const innerIt: CodeInterface = {
           name: itCls,
-          comment: `@description ${current.paramDesc}
-@default ${'defaultValue' in current ? current.defaultValue : ''}
-@example ${current.example}`,
+          comment: `@description ${current.desc}`,
           columns: [],
         };
         ret.push(...buildInterfaceColumn(innerIt, current.children, t));
       }
-      if (current.paramType === 'OBJECT' || current.paramType === 'MAP') {
+      if (current.type === 'OBJECT' || current.type === 'MAP') {
         type = itCls;
-      } else if (current.paramType === 'OBJECT[]' || current.paramType === 'MAP[]') {
+      } else if (current.type === 'OBJECT[]' || current.type === 'MAP[]') {
         type = `${itCls}[]`;
       } else {
-        type = current.paramType;
+        type = current.type;
       }
-      comment = `@description: ${current.paramDesc}
-@type: ${type}
-@default: ${'defaultValue' in current ? current.defaultValue : ''}
-      `;
+      comment = `@description: ${current.desc}
+@type: ${type}`;
     }
     inter.columns.push({
       name,
       type,
       optional,
       comment,
-      example,
     });
   }
 
@@ -192,7 +223,8 @@ ${buildColumns(it.columns, 2)}
  */
 const typeMap = {
   LONG: 'string | number',
-  'LONG[]': 'Array<string | number>',
+  '[]object': 'Array<string | number>',
+  '[]string': 'string[]',
   INTEGER: 'number',
   MAP: 'Record<string, any>',
   DOUBLE: 'string',
@@ -228,7 +260,6 @@ export async function generatorIndexCode(state: RunStateInterface) {
           fl.requestInterface,
           fl.responseInterface,
           fl.secondResponseInterface,
-          fl.apiLimiters,
         ]
           .filter((it) => !!it)
           .join(',\n  ');
@@ -267,21 +298,13 @@ export async function generatorIndexCode(state: RunStateInterface) {
 ];`;
 
   // 这里生成一个对象，包含了应用限频信息
-  const PddApiNeedLimiter = 'PddApiLimiterMapping';
-  const PddApiNeedLimiterInnerCode = filter(flattenResolvedFiles, 'apiLimiters')
-    .map((it: RunStateFileInterface) => {
-      return `[${it.constVariable}]: ${it.apiLimiters}`;
-    })
-    .join(',\n');
-  const PddApiLimiterMappingCodes = `const ${PddApiNeedLimiter} = \{${PddApiNeedLimiterInnerCode}\};`;
-
   // 导出的变量信息
   const exportVariables = map(flattenResolvedFiles, (fl: RunStateFileInterface) => {
     return [fl.constVariable, fl.responseKey, fl.requestInterface, fl.responseInterface, fl.secondResponseInterface]
       .filter((it) => !!it)
       .join(',\n  ');
   })
-    .concat([PddResponseTypeAndRequestTypeMapping, PddNeedAccessTokenTypeCollections, PddApiNeedLimiter])
+    .concat([PddResponseTypeAndRequestTypeMapping, PddNeedAccessTokenTypeCollections])
     .join(',\n  ');
 
   const exportVariablesCode = `export {
@@ -317,7 +340,6 @@ export async function generatorIndexCode(state: RunStateInterface) {
       ...importCodes,
       typeAndResponseKeyMappingCode,
       PddNeedAccessTokenTypeCollectionsCodes,
-      PddApiLimiterMappingCodes,
       exportVariablesCode,
       exportPddRequestInterfaceCode,
       exportPddResponseInterfaceCode,

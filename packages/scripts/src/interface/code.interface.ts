@@ -3,7 +3,6 @@ export interface CodeInterface {
 
   // 接口备注信息
   comment: string;
-
   // 当前代码的所有字段
   /**
    * @type CodeColumnInterface[]
@@ -24,7 +23,4 @@ export interface CodeColumnInterface {
 
   // 备注
   comment: string;
-
-  // 示例
-  example: string;
 }

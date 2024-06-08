@@ -1,19 +1,13 @@
-import tinyPinYin from 'tiny-pinyin';
 import camelCase from 'lodash/camelCase';
 import startCase from 'lodash/startCase';
 import * as fs from 'fs';
 import { normalize, sep } from 'path';
 import { promisify } from 'util';
 import { TreeType } from '../interface/tree.interface';
-import { ApiDetailInterface, ApiDetailResponseParamInterface } from '../interface/api-detail.interface';
 import { AsyncResultCallback } from 'async';
 
 export function nameToDirectoryName(name: string): string {
-  if (tinyPinYin.isSupported()) {
-    const py = tinyPinYin.convertToPinyin(name.replace('API', ''), '_', true);
-    return camelCase(py);
-  }
-  return '';
+    return camelCase(name);
 }
 
 // 创建类名
@@ -73,71 +67,11 @@ export async function saveCode(file: string, code: string) {
 }
 
 /**
- * 将数据转化成树开结构
- * @param arr 原始数据
- * @param pid 父级ID值
- * @param parentKey 父级的KEY
- * @param currentKey 当前级的KEY
- * @param childKey 默认子级的key
- * @param transform 转换数据
- */
-export function tree<T extends Record<string, any>, K extends keyof T>(
-  arr: T[],
-  {
-    pid,
-    parentKey = 'parent_id',
-    currentKey = 'id',
-  }: { pid: number | string; parentKey?: K | 'parent_id'; currentKey?: string },
-  childKey = 'children',
-  transform?: (it: T) => Pick<T, K>
-): TreeType<Pick<T, K>>[] {
-  const retGroup: any = {};
-  for (const item of arr) {
-    const pushItem = transform ? transform(item) : { ...item };
-    const parentValue = typeof pushItem[parentKey as K] === 'undefined' ? '__default' : pushItem[parentKey as K];
-    if (!retGroup[parentValue]) {
-      retGroup[parentValue] = [];
-    }
-    retGroup[parentValue].push(pushItem);
-  }
-
-  const treeItem = (group: any, parentId: string | number = '__default') => {
-    const items = group[parentId] || [];
-    for (const it of items) {
-      const parentIdValue = it[currentKey];
-      if (group[parentIdValue]) {
-        it[childKey] = treeItem(group, parentIdValue);
-      }
-    }
-    return items;
-  };
-
-  return treeItem(retGroup, pid);
-}
-
-/**
  * 生成常量
  * @param apiName
  */
 export function generateConstant(apiName: string): string {
-  return apiName.replace(/\./g, '_').toUpperCase();
-}
-
-/**
- * 获取拼多多当中，向应的key
- * @param apiInfo
- */
-export function getPddResponseRootKey(apiInfo: ApiDetailInterface): string | void {
-  const treed = tree(apiInfo.responseParamList, { parentKey: 'parentId', currentKey: 'id', pid: 0 } as any);
-  const first: ApiDetailResponseParamInterface = treed[0];
-  const limitType = ['OBJECT', 'OBJECT[]', 'MAP'];
-  if (
-    treed.length === 1 &&
-    ((first && first.paramName) || '').match(/_response$/) &&
-    limitType.includes(first.paramType)
-  ) {
-    return first.paramName;
-  }
+  return apiName.replace(/\./g, '_').replace(/\s/g, '_').toUpperCase();
 }
 
 /**
@@ -145,9 +79,9 @@ export function getPddResponseRootKey(apiInfo: ApiDetailInterface): string | voi
  * @param promise
  * @param callback
  */
-export function promseToCallback<R>(promise: Promise<R>): Promise<R>;
-export function promseToCallback<R, E = never>(promise: Promise<R>, callback: AsyncResultCallback<R, E>): void;
-export function promseToCallback<R, E = never>(
+export function promiseToCallback<R>(promise: Promise<R>): Promise<R>;
+export function promiseToCallback<R, E = never>(promise: Promise<R>, callback: AsyncResultCallback<R, E>): void;
+export function promiseToCallback<R, E = never>(
   promise: Promise<R>,
   callback?: AsyncResultCallback<R, E>
 ): Promise<R> | void {

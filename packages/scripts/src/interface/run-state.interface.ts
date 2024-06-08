@@ -36,7 +36,4 @@ export interface RunStateFileInterface {
 
   // 简化response时，需要用到的参数
   responseKey?: string;
-
-  // 当前接口的限流信息
-  apiLimiters?: string;
 }

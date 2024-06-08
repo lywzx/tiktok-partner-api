@@ -1,0 +1,25 @@
+{
+  "name": "@tktk/core",
+  "version": "0.0.1",
+  "description": "> TODO: description",
+  "author": "lywzx <liuyang@lyblog.net>",
+  "homepage": "https://github.com/lywzx/tiktok-partner-api/tree/main/packages/core#readme",
+  "license": "MIT",
+  "main": "lib/core.js",
+  "publishConfig": {
+    "registry": "https://registry.npmmirror.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lywzx/tiktok-partner-api.git"
+  },
+  "scripts": {
+    "prepublishOnly": "cd ../.. && yarn build --only-package=@tktk/tk-origin-api --dts=false"
+  },
+  "peerDependencies": {
+    "axios": "^1.7.2"
+  },
+  "bugs": {
+    "url": "https://github.com/lywzx/tiktok-partner-api/issues"
+  }
+}
